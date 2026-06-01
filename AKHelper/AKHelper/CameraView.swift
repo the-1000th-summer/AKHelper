@@ -163,7 +163,7 @@ final class CameraViewController: UIViewController {
             operatorResultsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             operatorResultsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             operatorResultsScrollView.bottomAnchor.constraint(equalTo: recognizedTagsLabel.topAnchor, constant: -12),
-            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 116),
+            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 132),
 
             operatorResultsStackView.leadingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.leadingAnchor),
             operatorResultsStackView.trailingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.trailingAnchor),
@@ -436,17 +436,34 @@ final class CameraViewController: UIViewController {
         nameLabel.adjustsFontSizeToFitWidth = true
         nameLabel.minimumScaleFactor = 0.7
 
+        let detailLabel = UILabel()
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+        detailLabel.text = "\(operatorInfo.rarity)★ \(operatorClassName(for: operatorInfo))"
+        detailLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        detailLabel.font = .preferredFont(forTextStyle: .caption2)
+        detailLabel.textAlignment = .center
+        detailLabel.numberOfLines = 1
+        detailLabel.adjustsFontSizeToFitWidth = true
+        detailLabel.minimumScaleFactor = 0.7
+
         container.addArrangedSubview(imageView)
         container.addArrangedSubview(nameLabel)
+        container.addArrangedSubview(detailLabel)
 
         NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: 72),
+            container.widthAnchor.constraint(equalToConstant: 76),
             imageView.widthAnchor.constraint(equalToConstant: 64),
             imageView.heightAnchor.constraint(equalToConstant: 64),
-            nameLabel.widthAnchor.constraint(equalToConstant: 72)
+            nameLabel.widthAnchor.constraint(equalToConstant: 76),
+            detailLabel.widthAnchor.constraint(equalToConstant: 76)
         ])
 
         return container
+    }
+
+    private func operatorClassName(for operatorInfo: RecruitmentOperator) -> String {
+        guard let classTag = operatorInfo.tags.last else { return "" }
+        return classTag.hasSuffix("干员") ? String(classTag.dropLast(2)) : classTag
     }
 
     private func showMessage(_ message: String) {
