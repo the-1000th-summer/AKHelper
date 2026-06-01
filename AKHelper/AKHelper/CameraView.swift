@@ -8,6 +8,7 @@
 import AVFoundation
 import SwiftUI
 import UIKit
+import Vision
 
 struct CameraView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> CameraViewController {
@@ -21,7 +22,45 @@ struct CameraView: UIViewControllerRepresentable {
 final class CameraViewController: UIViewController {
     private let captureSession = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.the1000thsummer.AKHelper.cameraSession")
+    private let videoOutputQueue = DispatchQueue(label: "com.the1000thsummer.AKHelper.videoOutput")
+    private let videoOutput = AVCaptureVideoDataOutput()
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var lastRecognitionTime = Date.distantPast
+    private var isRecognizingText = false
+    private var lastPrintedTags: [String] = []
+
+    private let recognitionInterval: TimeInterval = 0.5
+    private let recruitmentTags = [
+        "新手",
+        "资深干员",
+        "高级资深干员",
+        "远程位",
+        "近战位",
+        "狙击",
+        "术师",
+        "先锋",
+        "近卫",
+        "重装",
+        "医疗",
+        "辅助",
+        "特种",
+        "治疗",
+        "支援",
+        "输出",
+        "群攻",
+        "减速",
+        "生存",
+        "防护",
+        "削弱",
+        "位移",
+        "爆发",
+        "控场",
+        "召唤",
+        "元素",
+        "快速复活",
+        "费用回复",
+        "支援机械"
+    ]
 
     private let messageLabel: UILabel = {
         let label = UILabel()
@@ -133,6 +172,22 @@ final class CameraViewController: UIViewController {
                 return false
             }
             captureSession.addInput(input)
+
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+            videoOutput.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
+            videoOutput.setSampleBufferDelegate(self, queue: videoOutputQueue)
+
+            guard captureSession.canAddOutput(videoOutput) else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showMessage("无法添加视频帧输出。")
+                }
+                return false
+            }
+            captureSession.addOutput(videoOutput)
+            videoOutput.connection(with: .video)?.videoRotationAngle = 90
+
             return true
         } catch {
             DispatchQueue.main.async { [weak self] in
@@ -142,8 +197,73 @@ final class CameraViewController: UIViewController {
         }
     }
 
+    private func recognizeRecruitmentTags(in pixelBuffer: CVPixelBuffer) {
+        let request = VNRecognizeTextRequest { [weak self] request, error in
+            guard let self else { return }
+            defer { self.isRecognizingText = false }
+
+            if let error {
+                print("OCR 识别失败：\(error.localizedDescription)")
+                return
+            }
+
+            let observations = request.results as? [VNRecognizedTextObservation] ?? []
+            let recognizedText = observations.compactMap { observation in
+                observation.topCandidates(1).first?.string
+            }
+//            print(recognizedText)
+            let matchedTags = self.matchRecruitmentTags(in: recognizedText)
+
+            guard !matchedTags.isEmpty, matchedTags != self.lastPrintedTags else { return }
+            self.lastPrintedTags = matchedTags
+            print("识别到公招词条：\(matchedTags.joined(separator: ", "))")
+        }
+
+        request.recognitionLanguages = ["zh-Hans"]
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        request.minimumTextHeight = 0.02
+
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right)
+        do {
+            try handler.perform([request])
+        } catch {
+            isRecognizingText = false
+            print("无法执行 OCR：\(error.localizedDescription)")
+        }
+    }
+
+    private func matchRecruitmentTags(in recognizedText: [String]) -> [String] {
+        let mergedText = recognizedText
+            .map(normalizedText)
+            .joined(separator: " ")
+
+        return recruitmentTags.filter { tag in
+            mergedText.contains(normalizedText(tag))
+        }
+    }
+
+    private func normalizedText(_ text: String) -> String {
+        text.filter { character in
+            character.isLetter || character.isNumber
+        }
+    }
+
     private func showMessage(_ message: String) {
         messageLabel.text = message
         messageLabel.isHidden = false
+    }
+}
+
+extension CameraViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        let now = Date()
+        guard now.timeIntervalSince(lastRecognitionTime) >= recognitionInterval else { return }
+        guard !isRecognizingText else { return }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
+        lastRecognitionTime = now
+        isRecognizingText = true
+        recognizeRecruitmentTags(in: pixelBuffer)
     }
 }

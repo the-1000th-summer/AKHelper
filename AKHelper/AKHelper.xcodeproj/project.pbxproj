@@ -6,10 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		79D3B4C82FCD734900D26F9E /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D3B4C72FCD734900D26F9E /* CameraView.swift */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		79D3B4AB2FCD703A00D26F9E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -31,7 +27,6 @@
 		79D3B49D2FCD703800D26F9E /* AKHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AKHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		79D3B4AA2FCD703A00D26F9E /* AKHelperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AKHelperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		79D3B4B42FCD703A00D26F9E /* AKHelperUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AKHelperUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		79D3B4C72FCD734900D26F9E /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -84,7 +79,6 @@
 				79D3B4AD2FCD703A00D26F9E /* AKHelperTests */,
 				79D3B4B72FCD703A00D26F9E /* AKHelperUITests */,
 				79D3B49E2FCD703800D26F9E /* Products */,
-				79D3B4C72FCD734900D26F9E /* CameraView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -242,7 +236,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				79D3B4C82FCD734900D26F9E /* CameraView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
