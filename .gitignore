@@ -1,0 +1,45 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcscmblueprint
+
+# User-specific Xcode data
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Xcode schemes
+*.xcodeproj/xcshareddata/xcschemes/*.xcscheme~
+*.xcworkspace/xcshareddata/xcschemes/*.xcscheme~
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# Archives and debug symbols
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+
+# App packages and signing
+*.ipa
+*.app
+*.mobileprovision
+*.provisionprofile
+
+# macOS
+.DS_Store
