@@ -47,7 +47,7 @@ final class CameraViewController: UIViewController {
     }()
 
     private let recognizedTagsLabel: UILabel = {
-        let label = UILabel()
+        let label = PaddedLabel(horizontalPadding: 14, verticalPadding: 10)
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textAlignment = .left
         label.numberOfLines = 0
@@ -162,8 +162,8 @@ final class CameraViewController: UIViewController {
         NSLayoutConstraint.activate([
             operatorResultsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             operatorResultsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            operatorResultsScrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             operatorResultsScrollView.bottomAnchor.constraint(equalTo: recognizedTagsLabel.topAnchor, constant: -12),
-            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 360),
 
             operatorResultsStackView.leadingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.leadingAnchor),
             operatorResultsStackView.trailingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.trailingAnchor),
@@ -498,14 +498,25 @@ final class CameraViewController: UIViewController {
         sectionStackView.spacing = 8
         sectionStackView.translatesAutoresizingMaskIntoConstraints = false
 
-        let titleLabel = UILabel()
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.text = group.tags.joined(separator: " + ")
-        titleLabel.textColor = .white
-        titleLabel.font = .preferredFont(forTextStyle: .subheadline)
-        titleLabel.numberOfLines = 1
-        titleLabel.adjustsFontSizeToFitWidth = true
-        titleLabel.minimumScaleFactor = 0.75
+        let tagStackView = UIStackView()
+        tagStackView.translatesAutoresizingMaskIntoConstraints = false
+        tagStackView.axis = .horizontal
+        tagStackView.alignment = .leading
+        tagStackView.distribution = .fill
+        tagStackView.spacing = 6
+
+        for tag in group.tags {
+            let chip = makeTagChip(text: tag)
+            chip.setContentHuggingPriority(.required, for: .horizontal)
+            chip.setContentCompressionResistancePriority(.required, for: .horizontal)
+            tagStackView.addArrangedSubview(chip)
+        }
+
+        let tagSpacerView = UIView()
+        tagSpacerView.translatesAutoresizingMaskIntoConstraints = false
+        tagSpacerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        tagSpacerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        tagStackView.addArrangedSubview(tagSpacerView)
 
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -522,7 +533,7 @@ final class CameraViewController: UIViewController {
         }
 
         scrollView.addSubview(stackView)
-        sectionStackView.addArrangedSubview(titleLabel)
+        sectionStackView.addArrangedSubview(tagStackView)
         sectionStackView.addArrangedSubview(scrollView)
 
         NSLayoutConstraint.activate([
@@ -563,29 +574,102 @@ final class CameraViewController: UIViewController {
         nameLabel.adjustsFontSizeToFitWidth = true
         nameLabel.minimumScaleFactor = 0.7
 
-        let detailLabel = UILabel()
-        detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.text = "\(operatorInfo.rarity)★ \(operatorClassName(for: operatorInfo))"
-        detailLabel.textColor = UIColor.white.withAlphaComponent(0.82)
-        detailLabel.font = .preferredFont(forTextStyle: .caption2)
-        detailLabel.textAlignment = .center
-        detailLabel.numberOfLines = 1
-        detailLabel.adjustsFontSizeToFitWidth = true
-        detailLabel.minimumScaleFactor = 0.7
+        let detailStackView = UIStackView()
+        detailStackView.translatesAutoresizingMaskIntoConstraints = false
+        detailStackView.axis = .horizontal
+        detailStackView.alignment = .center
+        detailStackView.spacing = 4
+
+        let rarityLabel = makeRarityChip(rarity: operatorInfo.rarity)
+
+        let classLabel = UILabel()
+        classLabel.translatesAutoresizingMaskIntoConstraints = false
+        classLabel.text = operatorClassName(for: operatorInfo)
+        classLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        classLabel.font = .preferredFont(forTextStyle: .caption2)
+        classLabel.textAlignment = .center
+        classLabel.numberOfLines = 1
+        classLabel.adjustsFontSizeToFitWidth = true
+        classLabel.minimumScaleFactor = 0.7
+
+        detailStackView.addArrangedSubview(rarityLabel)
+        detailStackView.addArrangedSubview(classLabel)
 
         container.addArrangedSubview(imageView)
         container.addArrangedSubview(nameLabel)
-        container.addArrangedSubview(detailLabel)
+        container.addArrangedSubview(detailStackView)
 
         NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: 76),
+            container.widthAnchor.constraint(equalToConstant: 82),
             imageView.widthAnchor.constraint(equalToConstant: 64),
             imageView.heightAnchor.constraint(equalToConstant: 64),
-            nameLabel.widthAnchor.constraint(equalToConstant: 76),
-            detailLabel.widthAnchor.constraint(equalToConstant: 76)
+            nameLabel.widthAnchor.constraint(equalToConstant: 82),
+            detailStackView.widthAnchor.constraint(lessThanOrEqualToConstant: 82),
+            classLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 42)
         ])
 
         return container
+    }
+
+    private func makeTagChip(text: String) -> UILabel {
+        makeChipLabel(
+            text: text,
+            backgroundColor: UIColor(red: 0, green: 152.0 / 255.0, blue: 220.0 / 255.0, alpha: 1),
+            font: .preferredFont(forTextStyle: .caption1),
+            horizontalPadding: 10,
+            verticalPadding: 4
+        )
+    }
+
+    private func makeRarityChip(rarity: Int) -> UILabel {
+        makeChipLabel(
+            text: "\(rarity)★",
+            backgroundColor: rarityColor(for: rarity),
+            font: .preferredFont(forTextStyle: .caption2),
+            horizontalPadding: 6,
+            verticalPadding: 2
+        )
+    }
+
+    private func makeChipLabel(
+        text: String,
+        backgroundColor: UIColor,
+        font: UIFont,
+        horizontalPadding: CGFloat,
+        verticalPadding: CGFloat
+    ) -> UILabel {
+        let label = PaddedLabel(horizontalPadding: horizontalPadding, verticalPadding: verticalPadding)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.text = text
+        label.textColor = .white
+        label.font = font
+        label.textAlignment = .center
+        label.backgroundColor = backgroundColor
+        label.layer.cornerRadius = 6
+        label.layer.masksToBounds = true
+        label.numberOfLines = 1
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return label
+    }
+
+    private func rarityColor(for rarity: Int) -> UIColor {
+        switch rarity {
+        case 6:
+            return .systemRed
+        case 5:
+            return .systemOrange
+        case 4:
+            return .systemPurple
+        case 3:
+            return .systemBlue
+        case 2:
+            return .systemGreen
+        case 1:
+            return .systemGray
+        default:
+            return .darkGray
+        }
     }
 
     private func operatorClassName(for operatorInfo: RecruitmentOperator) -> String {
@@ -596,6 +680,35 @@ final class CameraViewController: UIViewController {
     private func showMessage(_ message: String) {
         messageLabel.text = message
         messageLabel.isHidden = false
+    }
+}
+
+final class PaddedLabel: UILabel {
+    private let horizontalPadding: CGFloat
+    private let verticalPadding: CGFloat
+
+    init(horizontalPadding: CGFloat, verticalPadding: CGFloat) {
+        self.horizontalPadding = horizontalPadding
+        self.verticalPadding = verticalPadding
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        self.horizontalPadding = 0
+        self.verticalPadding = 0
+        super.init(coder: coder)
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(
+            width: size.width + horizontalPadding * 2,
+            height: size.height + verticalPadding * 2
+        )
+    }
+
+    override func drawText(in rect: CGRect) {
+        super.drawText(in: rect.insetBy(dx: horizontalPadding, dy: verticalPadding))
     }
 }
 
