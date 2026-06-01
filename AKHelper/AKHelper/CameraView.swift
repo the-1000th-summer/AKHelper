@@ -77,7 +77,7 @@ final class CameraViewController: UIViewController {
     private let operatorResultsScrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = true
         scrollView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
         scrollView.layer.cornerRadius = 12
         scrollView.isHidden = true
@@ -87,10 +87,10 @@ final class CameraViewController: UIViewController {
     private let operatorResultsStackView: UIStackView = {
         let stackView = UIStackView()
         stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.axis = .horizontal
-        stackView.alignment = .top
-        stackView.spacing = 10
-        stackView.layoutMargins = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        stackView.axis = .vertical
+        stackView.alignment = .fill
+        stackView.spacing = 14
+        stackView.layoutMargins = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         stackView.isLayoutMarginsRelativeArrangement = true
         return stackView
     }()
@@ -163,13 +163,13 @@ final class CameraViewController: UIViewController {
             operatorResultsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             operatorResultsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             operatorResultsScrollView.bottomAnchor.constraint(equalTo: recognizedTagsLabel.topAnchor, constant: -12),
-            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 132),
+            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 360),
 
             operatorResultsStackView.leadingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.leadingAnchor),
             operatorResultsStackView.trailingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.trailingAnchor),
             operatorResultsStackView.topAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.topAnchor),
             operatorResultsStackView.bottomAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.bottomAnchor),
-            operatorResultsStackView.heightAnchor.constraint(equalTo: operatorResultsScrollView.frameLayoutGuide.heightAnchor)
+            operatorResultsStackView.widthAnchor.constraint(equalTo: operatorResultsScrollView.frameLayoutGuide.widthAnchor)
         ])
     }
 
@@ -378,25 +378,65 @@ final class CameraViewController: UIViewController {
             return
         }
 
-        let matchedOperators = recruitmentDatabase.operators.filter { operatorInfo in
-            tags.contains { operatorInfo.tags.contains($0) }
-        }
+        let groups = operatorMatchGroups(for: tags, in: recruitmentDatabase.operators)
 
         DispatchQueue.main.async { [weak self] in
-            self?.showOperatorResults(matchedOperators)
+            self?.showOperatorResults(groups)
         }
     }
 
-    private func showOperatorResults(_ operators: [RecruitmentOperator]) {
+    private func operatorMatchGroups(
+        for tags: [String],
+        in operators: [RecruitmentOperator]
+    ) -> [(tags: [String], operators: [RecruitmentOperator])] {
+        let maxCombinationSize = min(3, tags.count)
+        var groups: [(tags: [String], operators: [RecruitmentOperator])] = []
+
+        for size in 1...maxCombinationSize {
+            for tagCombination in tagCombinations(from: tags, size: size) {
+                let matchedOperators = operators.filter { operatorInfo in
+                    tagCombination.allSatisfy { operatorInfo.tags.contains($0) }
+                }
+
+                if !matchedOperators.isEmpty {
+                    groups.append((tags: tagCombination, operators: matchedOperators))
+                }
+            }
+        }
+
+        return groups
+    }
+
+    private func tagCombinations(from tags: [String], size: Int) -> [[String]] {
+        guard size > 0 else { return [[]] }
+        guard tags.count >= size else { return [] }
+
+        if size == 1 {
+            return tags.map { [$0] }
+        }
+
+        var result: [[String]] = []
+        for index in 0...(tags.count - size) {
+            let head = tags[index]
+            let tail = Array(tags[(index + 1)...])
+            for combination in tagCombinations(from: tail, size: size - 1) {
+                result.append([head] + combination)
+            }
+        }
+
+        return result
+    }
+
+    private func showOperatorResults(_ groups: [(tags: [String], operators: [RecruitmentOperator])]) {
         clearOperatorResults()
 
-        guard !operators.isEmpty else {
+        guard !groups.isEmpty else {
             operatorResultsScrollView.isHidden = true
             return
         }
 
-        for operatorInfo in operators {
-            operatorResultsStackView.addArrangedSubview(makeOperatorResultView(for: operatorInfo))
+        for group in groups {
+            operatorResultsStackView.addArrangedSubview(makeOperatorResultSection(for: group))
         }
 
         operatorResultsScrollView.isHidden = false
@@ -408,6 +448,54 @@ final class CameraViewController: UIViewController {
             view.removeFromSuperview()
         }
         operatorResultsScrollView.isHidden = true
+    }
+
+    private func makeOperatorResultSection(
+        for group: (tags: [String], operators: [RecruitmentOperator])
+    ) -> UIView {
+        let sectionStackView = UIStackView()
+        sectionStackView.axis = .vertical
+        sectionStackView.alignment = .fill
+        sectionStackView.spacing = 8
+        sectionStackView.translatesAutoresizingMaskIntoConstraints = false
+
+        let titleLabel = UILabel()
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.text = group.tags.joined(separator: " + ")
+        titleLabel.textColor = .white
+        titleLabel.font = .preferredFont(forTextStyle: .subheadline)
+        titleLabel.numberOfLines = 1
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.75
+
+        let scrollView = UIScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.showsHorizontalScrollIndicator = false
+
+        let stackView = UIStackView()
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .horizontal
+        stackView.alignment = .top
+        stackView.spacing = 10
+
+        for operatorInfo in group.operators {
+            stackView.addArrangedSubview(makeOperatorResultView(for: operatorInfo))
+        }
+
+        scrollView.addSubview(stackView)
+        sectionStackView.addArrangedSubview(titleLabel)
+        sectionStackView.addArrangedSubview(scrollView)
+
+        NSLayoutConstraint.activate([
+            scrollView.heightAnchor.constraint(equalToConstant: 112),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            stackView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+        ])
+
+        return sectionStackView
     }
 
     private func makeOperatorResultView(for operatorInfo: RecruitmentOperator) -> UIView {
