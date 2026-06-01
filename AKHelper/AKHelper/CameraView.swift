@@ -74,6 +74,27 @@ final class CameraViewController: UIViewController {
         return button
     }()
 
+    private let operatorResultsScrollView: UIScrollView = {
+        let scrollView = UIScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        scrollView.layer.cornerRadius = 12
+        scrollView.isHidden = true
+        return scrollView
+    }()
+
+    private let operatorResultsStackView: UIStackView = {
+        let stackView = UIStackView()
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .horizontal
+        stackView.alignment = .top
+        stackView.spacing = 10
+        stackView.layoutMargins = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+        stackView.isLayoutMarginsRelativeArrangement = true
+        return stackView
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
@@ -81,6 +102,7 @@ final class CameraViewController: UIViewController {
         configurePreviewLayer()
         configureRecognizedTagsLabel()
         configureResetRecognitionButton()
+        configureOperatorResultsView()
         loadRecruitmentDatabase()
         requestCameraAccessIfNeeded()
     }
@@ -130,6 +152,24 @@ final class CameraViewController: UIViewController {
             recognizedTagsLabel.bottomAnchor.constraint(equalTo: resetRecognitionButton.topAnchor, constant: -12),
             resetRecognitionButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             resetRecognitionButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
+        ])
+    }
+
+    private func configureOperatorResultsView() {
+        view.addSubview(operatorResultsScrollView)
+        operatorResultsScrollView.addSubview(operatorResultsStackView)
+
+        NSLayoutConstraint.activate([
+            operatorResultsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            operatorResultsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            operatorResultsScrollView.bottomAnchor.constraint(equalTo: recognizedTagsLabel.topAnchor, constant: -12),
+            operatorResultsScrollView.heightAnchor.constraint(equalToConstant: 116),
+
+            operatorResultsStackView.leadingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.leadingAnchor),
+            operatorResultsStackView.trailingAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.trailingAnchor),
+            operatorResultsStackView.topAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.topAnchor),
+            operatorResultsStackView.bottomAnchor.constraint(equalTo: operatorResultsScrollView.contentLayoutGuide.bottomAnchor),
+            operatorResultsStackView.heightAnchor.constraint(equalTo: operatorResultsScrollView.frameLayoutGuide.heightAnchor)
         ])
     }
 
@@ -324,6 +364,7 @@ final class CameraViewController: UIViewController {
             DispatchQueue.main.async { [weak self] in
                 self?.recognizedTagsLabel.text = "正在识别公招词条..."
                 self?.resetRecognitionButton.isHidden = true
+                self?.clearOperatorResults()
             }
         }
     }
@@ -331,6 +372,9 @@ final class CameraViewController: UIViewController {
     private func findOperators(for tags: [String]) {
         guard let recruitmentDatabase else {
             print("公招数据尚未加载，无法查询干员。")
+            DispatchQueue.main.async { [weak self] in
+                self?.clearOperatorResults()
+            }
             return
         }
 
@@ -338,12 +382,71 @@ final class CameraViewController: UIViewController {
             tags.contains { operatorInfo.tags.contains($0) }
         }
 
-        let operatorNames = matchedOperators
-            .map { "\($0.name)(\($0.rarity)★)" }
-            .joined(separator: ", ")
+        DispatchQueue.main.async { [weak self] in
+            self?.showOperatorResults(matchedOperators)
+        }
+    }
 
-        print("根据词条查询干员：\(tags.joined(separator: ", "))")
-        print("匹配干员：\(operatorNames.isEmpty ? "无" : operatorNames)")
+    private func showOperatorResults(_ operators: [RecruitmentOperator]) {
+        clearOperatorResults()
+
+        guard !operators.isEmpty else {
+            operatorResultsScrollView.isHidden = true
+            return
+        }
+
+        for operatorInfo in operators {
+            operatorResultsStackView.addArrangedSubview(makeOperatorResultView(for: operatorInfo))
+        }
+
+        operatorResultsScrollView.isHidden = false
+    }
+
+    private func clearOperatorResults() {
+        for view in operatorResultsStackView.arrangedSubviews {
+            operatorResultsStackView.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+        operatorResultsScrollView.isHidden = true
+    }
+
+    private func makeOperatorResultView(for operatorInfo: RecruitmentOperator) -> UIView {
+        let container = UIStackView()
+        container.axis = .vertical
+        container.alignment = .center
+        container.spacing = 6
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let imageView = UIImageView(image: UIImage(named: operatorInfo.id))
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        imageView.layer.cornerRadius = 8
+        imageView.layer.borderColor = UIColor.white.withAlphaComponent(0.25).cgColor
+        imageView.layer.borderWidth = 1
+
+        let nameLabel = UILabel()
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        nameLabel.text = operatorInfo.name
+        nameLabel.textColor = .white
+        nameLabel.font = .preferredFont(forTextStyle: .caption1)
+        nameLabel.textAlignment = .center
+        nameLabel.numberOfLines = 1
+        nameLabel.adjustsFontSizeToFitWidth = true
+        nameLabel.minimumScaleFactor = 0.7
+
+        container.addArrangedSubview(imageView)
+        container.addArrangedSubview(nameLabel)
+
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: 72),
+            imageView.widthAnchor.constraint(equalToConstant: 64),
+            imageView.heightAnchor.constraint(equalToConstant: 64),
+            nameLabel.widthAnchor.constraint(equalToConstant: 72)
+        ])
+
+        return container
     }
 
     private func showMessage(_ message: String) {
