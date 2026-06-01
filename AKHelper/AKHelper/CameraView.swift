@@ -390,13 +390,24 @@ final class CameraViewController: UIViewController {
         in operators: [RecruitmentOperator]
     ) -> [(tags: [String], operators: [RecruitmentOperator])] {
         let maxCombinationSize = min(3, tags.count)
+        let allowsSixStarOperators = tags.contains("高级资深干员")
+        let eligibleOperators = operators.filter { operatorInfo in
+            allowsSixStarOperators || operatorInfo.rarity < 6
+        }
         var groups: [(tags: [String], operators: [RecruitmentOperator])] = []
 
         for size in 1...maxCombinationSize {
             for tagCombination in tagCombinations(from: tags, size: size) {
-                let matchedOperators = operators.filter { operatorInfo in
-                    tagCombination.allSatisfy { operatorInfo.tags.contains($0) }
-                }
+                let matchedOperators = eligibleOperators
+                    .filter { operatorInfo in
+                        tagCombination.allSatisfy { operatorInfo.tags.contains($0) }
+                    }
+                    .sorted { lhs, rhs in
+                        if lhs.rarity != rhs.rarity {
+                            return lhs.rarity > rhs.rarity
+                        }
+                        return lhs.name < rhs.name
+                    }
 
                 if !matchedOperators.isEmpty {
                     groups.append((tags: tagCombination, operators: matchedOperators))
@@ -404,7 +415,35 @@ final class CameraViewController: UIViewController {
             }
         }
 
-        return groups
+        return groups.sorted { lhs, rhs in
+            let lhsMinimumRarity = minimumRarity(in: lhs.operators)
+            let rhsMinimumRarity = minimumRarity(in: rhs.operators)
+            if lhsMinimumRarity != rhsMinimumRarity {
+                return lhsMinimumRarity > rhsMinimumRarity
+            }
+
+            let lhsAverageRarity = averageRarity(in: lhs.operators)
+            let rhsAverageRarity = averageRarity(in: rhs.operators)
+            if lhsAverageRarity != rhsAverageRarity {
+                return lhsAverageRarity > rhsAverageRarity
+            }
+
+            if lhs.tags.count != rhs.tags.count {
+                return lhs.tags.count < rhs.tags.count
+            }
+
+            return lhs.tags.joined(separator: " + ") < rhs.tags.joined(separator: " + ")
+        }
+    }
+
+    private func minimumRarity(in operators: [RecruitmentOperator]) -> Int {
+        operators.map(\.rarity).min() ?? 0
+    }
+
+    private func averageRarity(in operators: [RecruitmentOperator]) -> Double {
+        guard !operators.isEmpty else { return 0 }
+        let totalRarity = operators.reduce(0) { $0 + $1.rarity }
+        return Double(totalRarity) / Double(operators.count)
     }
 
     private func tagCombinations(from tags: [String], size: Int) -> [[String]] {
