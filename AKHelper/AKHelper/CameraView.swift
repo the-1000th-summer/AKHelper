@@ -379,9 +379,11 @@ final class CameraViewController: UIViewController {
         }
 
         let groups = operatorMatchGroups(for: tags, in: recruitmentDatabase.operators)
+        let guaranteedRarity = highestGuaranteedRarity(in: groups)
 
         DispatchQueue.main.async { [weak self] in
             self?.showOperatorResults(groups)
+            self?.playRecruitmentFeedback(for: guaranteedRarity)
         }
     }
 
@@ -434,6 +436,14 @@ final class CameraViewController: UIViewController {
 
             return lhs.tags.joined(separator: " + ") < rhs.tags.joined(separator: " + ")
         }
+    }
+
+    private func highestGuaranteedRarity(
+        in groups: [(tags: [String], operators: [RecruitmentOperator])]
+    ) -> Int {
+        groups
+            .map { minimumRarity(in: $0.operators) }
+            .max() ?? 0
     }
 
     private func minimumRarity(in operators: [RecruitmentOperator]) -> Int {
@@ -669,6 +679,31 @@ final class CameraViewController: UIViewController {
             return .systemGray
         default:
             return .darkGray
+        }
+    }
+
+    private func playRecruitmentFeedback(for rarity: Int) {
+        let style: UIImpactFeedbackGenerator.FeedbackStyle
+
+        switch rarity {
+        case 6:
+            style = .heavy
+        case 5:
+            style = .medium
+        case 4:
+            style = .light
+        default:
+            return
+        }
+
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
+
+        if rarity == 6 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                generator.impactOccurred()
+            }
         }
     }
 

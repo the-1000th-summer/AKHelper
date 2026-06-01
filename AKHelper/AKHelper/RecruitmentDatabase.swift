@@ -50,11 +50,10 @@ struct RecruitmentTagMatcher {
     }
 
     func matchedTags(in recognizedText: [String]) -> [String] {
-        let mergedText = recognizedText
-            .map(Self.normalizedText)
-            .joined(separator: " ")
+        let normalizedObservations = recognizedText.map(Self.normalizedText)
+        let mergedText = normalizedObservations.joined(separator: " ")
 
-        return canonicalTags.filter { tag in
+        let matchedTags = canonicalTags.filter { tag in
             let canonicalTag = Self.normalizedText(tag)
             if mergedText.contains(canonicalTag) {
                 return true
@@ -67,13 +66,58 @@ struct RecruitmentTagMatcher {
 
             return false
         }
+
+        return removeContainedTagFalsePositives(
+            from: matchedTags,
+            normalizedObservations: normalizedObservations
+        )
     }
 
     func canonicalTag(for tag: String) -> String? {
         normalizedAliases[Self.normalizedText(tag)]
     }
 
-    private static func normalizedText(_ text: String) -> String {
+    private func removeContainedTagFalsePositives(
+        from matchedTags: [String],
+        normalizedObservations: [String]
+    ) -> [String] {
+        var filteredTags = Set(matchedTags)
+        let containedTagRules = [
+            (longTag: "高级资深干员", shortTag: "资深干员"),
+            (longTag: "支援机械", shortTag: "支援")
+        ]
+
+        for rule in containedTagRules {
+            guard filteredTags.contains(rule.longTag), filteredTags.contains(rule.shortTag) else {
+                continue
+            }
+
+            if !hasIndependentEvidence(
+                for: rule.shortTag,
+                excluding: rule.longTag,
+                in: normalizedObservations
+            ) {
+                filteredTags.remove(rule.shortTag)
+            }
+        }
+
+        return canonicalTags.filter { filteredTags.contains($0) }
+    }
+
+    private func hasIndependentEvidence(
+        for shortTag: String,
+        excluding longTag: String,
+        in normalizedObservations: [String]
+    ) -> Bool {
+        let normalizedShortTag = Self.normalizedText(shortTag)
+        let normalizedLongTag = Self.normalizedText(longTag)
+
+        return normalizedObservations.contains { observation in
+            observation.contains(normalizedShortTag) && !observation.contains(normalizedLongTag)
+        }
+    }
+
+    nonisolated private static func normalizedText(_ text: String) -> String {
         text.filter { character in
             character.isLetter || character.isNumber
         }
