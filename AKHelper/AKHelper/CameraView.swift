@@ -30,40 +30,11 @@ final class CameraViewController: UIViewController {
     private var isRecognitionPaused = false
     private var lastPrintedTags: [String] = []
     private var lastQueriedTags: [String] = []
+    private var recruitmentDatabase: RecruitmentDatabase?
+    private var recruitmentTagMatcher: RecruitmentTagMatcher?
 
     private let expectedTagCount = 5
     private let recognitionInterval: TimeInterval = 0.5
-    private let recruitmentTags = [
-        "新手",
-        "资深干员",
-        "高级资深干员",
-        "远程位",
-        "近战位",
-        "狙击",
-        "术师",
-        "先锋",
-        "近卫",
-        "重装",
-        "医疗",
-        "辅助",
-        "特种",
-        "治疗",
-        "支援",
-        "输出",
-        "群攻",
-        "减速",
-        "生存",
-        "防护",
-        "削弱",
-        "位移",
-        "爆发",
-        "控场",
-        "召唤",
-        "元素",
-        "快速复活",
-        "费用回复",
-        "支援机械"
-    ]
 
     private let messageLabel: UILabel = {
         let label = UILabel()
@@ -110,6 +81,7 @@ final class CameraViewController: UIViewController {
         configurePreviewLayer()
         configureRecognizedTagsLabel()
         configureResetRecognitionButton()
+        loadRecruitmentDatabase()
         requestCameraAccessIfNeeded()
     }
 
@@ -159,6 +131,17 @@ final class CameraViewController: UIViewController {
             resetRecognitionButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             resetRecognitionButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
         ])
+    }
+
+    private func loadRecruitmentDatabase() {
+        do {
+            let database = try RecruitmentDatabaseLoader.load()
+            recruitmentDatabase = database
+            recruitmentTagMatcher = RecruitmentTagMatcher(operators: database.operators)
+        } catch {
+            showMessage("公招数据加载失败：\(error.localizedDescription)")
+            isRecognitionPaused = true
+        }
     }
 
     private func requestCameraAccessIfNeeded() {
@@ -290,19 +273,7 @@ final class CameraViewController: UIViewController {
     }
 
     private func matchRecruitmentTags(in recognizedText: [String]) -> [String] {
-        let mergedText = recognizedText
-            .map(normalizedText)
-            .joined(separator: " ")
-
-        return recruitmentTags.filter { tag in
-            mergedText.contains(normalizedText(tag))
-        }
-    }
-
-    private func normalizedText(_ text: String) -> String {
-        text.filter { character in
-            character.isLetter || character.isNumber
-        }
+        recruitmentTagMatcher?.matchedTags(in: recognizedText) ?? []
     }
 
     private func updateRecognizedTagsDisplay(_ tags: [String]) {
@@ -358,7 +329,21 @@ final class CameraViewController: UIViewController {
     }
 
     private func findOperators(for tags: [String]) {
-        print("TODO: 根据 5 个公招词条查询干员：\(tags.joined(separator: ", "))")
+        guard let recruitmentDatabase else {
+            print("公招数据尚未加载，无法查询干员。")
+            return
+        }
+
+        let matchedOperators = recruitmentDatabase.operators.filter { operatorInfo in
+            tags.contains { operatorInfo.tags.contains($0) }
+        }
+
+        let operatorNames = matchedOperators
+            .map { "\($0.name)(\($0.rarity)★)" }
+            .joined(separator: ", ")
+
+        print("根据词条查询干员：\(tags.joined(separator: ", "))")
+        print("匹配干员：\(operatorNames.isEmpty ? "无" : operatorNames)")
     }
 
     private func showMessage(_ message: String) {
