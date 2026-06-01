@@ -27,8 +27,11 @@ final class CameraViewController: UIViewController {
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var lastRecognitionTime = Date.distantPast
     private var isRecognizingText = false
+    private var isRecognitionPaused = false
     private var lastPrintedTags: [String] = []
+    private var lastQueriedTags: [String] = []
 
+    private let expectedTagCount = 5
     private let recognitionInterval: TimeInterval = 0.5
     private let recruitmentTags = [
         "新手",
@@ -72,11 +75,41 @@ final class CameraViewController: UIViewController {
         return label
     }()
 
+    private let recognizedTagsLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.textAlignment = .left
+        label.numberOfLines = 0
+        label.textColor = .white
+        label.font = .preferredFont(forTextStyle: .headline)
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        label.layer.cornerRadius = 12
+        label.layer.masksToBounds = true
+        label.text = "正在识别公招词条..."
+        return label
+    }()
+
+    private let resetRecognitionButton: UIButton = {
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = "重新识别"
+        configuration.image = UIImage(systemName: "arrow.clockwise")
+        configuration.imagePadding = 8
+        configuration.baseBackgroundColor = .systemBlue
+        configuration.baseForegroundColor = .white
+
+        let button = UIButton(configuration: configuration)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        return button
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
         configureMessageLabel()
         configurePreviewLayer()
+        configureRecognizedTagsLabel()
+        configureResetRecognitionButton()
         requestCameraAccessIfNeeded()
     }
 
@@ -108,6 +141,24 @@ final class CameraViewController: UIViewController {
         layer.videoGravity = .resizeAspectFill
         view.layer.insertSublayer(layer, at: 0)
         previewLayer = layer
+    }
+
+    private func configureRecognizedTagsLabel() {
+        view.addSubview(recognizedTagsLabel)
+        NSLayoutConstraint.activate([
+            recognizedTagsLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            recognizedTagsLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
+        ])
+    }
+
+    private func configureResetRecognitionButton() {
+        resetRecognitionButton.addTarget(self, action: #selector(resetRecognition), for: .touchUpInside)
+        view.addSubview(resetRecognitionButton)
+        NSLayoutConstraint.activate([
+            recognizedTagsLabel.bottomAnchor.constraint(equalTo: resetRecognitionButton.topAnchor, constant: -12),
+            resetRecognitionButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            resetRecognitionButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
+        ])
     }
 
     private func requestCameraAccessIfNeeded() {
@@ -213,10 +264,15 @@ final class CameraViewController: UIViewController {
             }
 //            print(recognizedText)
             let matchedTags = self.matchRecruitmentTags(in: recognizedText)
+            self.updateRecognizedTagsDisplay(matchedTags)
 
-            guard !matchedTags.isEmpty, matchedTags != self.lastPrintedTags else { return }
-            self.lastPrintedTags = matchedTags
-            print("识别到公招词条：\(matchedTags.joined(separator: ", "))")
+            if !matchedTags.isEmpty, matchedTags != self.lastPrintedTags {
+                self.lastPrintedTags = matchedTags
+                print("识别到公招词条：\(matchedTags.joined(separator: ", "))")
+            }
+
+            guard matchedTags.count == self.expectedTagCount else { return }
+            self.lockRecognition(with: matchedTags)
         }
 
         request.recognitionLanguages = ["zh-Hans"]
@@ -249,6 +305,62 @@ final class CameraViewController: UIViewController {
         }
     }
 
+    private func updateRecognizedTagsDisplay(_ tags: [String]) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard !self.isRecognitionPaused else { return }
+            self.resetRecognitionButton.isHidden = true
+
+            if tags.isEmpty {
+                self.recognizedTagsLabel.text = "正在识别公招词条..."
+                return
+            }
+
+            let status: String
+            if tags.count == self.expectedTagCount {
+                status = "已识别 5/5，准备查询干员"
+            } else if tags.count < self.expectedTagCount {
+                status = "已识别 \(tags.count)/5"
+            } else {
+                status = "识别到 \(tags.count) 个词条，请调整画面"
+            }
+
+            self.recognizedTagsLabel.text = "\(status)\n\(tags.joined(separator: "、"))"
+        }
+    }
+
+    private func lockRecognition(with tags: [String]) {
+        isRecognitionPaused = true
+        lastQueriedTags = tags
+        findOperators(for: tags)
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.recognizedTagsLabel.text = "已锁定 5/5\n\(tags.joined(separator: "、"))"
+            self.resetRecognitionButton.isHidden = false
+        }
+    }
+
+    @objc private func resetRecognition() {
+        videoOutputQueue.async { [weak self] in
+            guard let self else { return }
+            self.isRecognitionPaused = false
+            self.isRecognizingText = false
+            self.lastPrintedTags = []
+            self.lastQueriedTags = []
+            self.lastRecognitionTime = .distantPast
+
+            DispatchQueue.main.async { [weak self] in
+                self?.recognizedTagsLabel.text = "正在识别公招词条..."
+                self?.resetRecognitionButton.isHidden = true
+            }
+        }
+    }
+
+    private func findOperators(for tags: [String]) {
+        print("TODO: 根据 5 个公招词条查询干员：\(tags.joined(separator: ", "))")
+    }
+
     private func showMessage(_ message: String) {
         messageLabel.text = message
         messageLabel.isHidden = false
@@ -259,6 +371,7 @@ extension CameraViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         let now = Date()
         guard now.timeIntervalSince(lastRecognitionTime) >= recognitionInterval else { return }
+        guard !isRecognitionPaused else { return }
         guard !isRecognizingText else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
