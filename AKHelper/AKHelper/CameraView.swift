@@ -509,7 +509,10 @@ final class CameraViewController: UIViewController {
     }
 
     private func minimumRarity(in operators: [RecruitmentOperator]) -> Int {
-        operators.map(\.rarity).min() ?? 0
+        operators
+            .map(\.rarity)
+            .filter { $0 >= 3 }
+            .min() ?? 0
     }
 
     private func averageRarity(in operators: [RecruitmentOperator]) -> Double {
