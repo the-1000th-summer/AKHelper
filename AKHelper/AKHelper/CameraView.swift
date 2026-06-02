@@ -343,13 +343,68 @@ final class CameraViewController: UIViewController {
     private func lockRecognition(with tags: [String]) {
         isRecognitionPaused = true
         lastQueriedTags = tags
-        findOperators(for: tags)
+        let guaranteedRarity = findOperators(for: tags)
 
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.recognizedTagsLabel.text = "已锁定 5/5\n\(tags.joined(separator: "、"))"
-            self.resetRecognitionButton.isHidden = false
+            self?.showLockedRecognitionStatus(tags: tags, guaranteedRarity: guaranteedRarity)
         }
+    }
+
+    private func showLockedRecognitionStatus(tags: [String], guaranteedRarity: Int) {
+        resetRecognitionButton.isHidden = false
+
+        guard let guaranteeText = guaranteeText(for: guaranteedRarity) else {
+            showFinalLockedRecognitionStatus(tags: tags)
+            return
+        }
+
+        recognizedTagsLabel.alpha = 1
+        recognizedTagsLabel.backgroundColor = recognitionStatusBackgroundColor(for: guaranteedRarity)
+        recognizedTagsLabel.textAlignment = .center
+        recognizedTagsLabel.font = .boldSystemFont(ofSize: 36)
+        recognizedTagsLabel.text = guaranteeText
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self else { return }
+
+            UIView.animate(withDuration: 0.2, animations: {
+                self.recognizedTagsLabel.alpha = 0
+            }, completion: { _ in
+                self.showFinalLockedRecognitionStatus(tags: tags)
+                UIView.animate(withDuration: 0.2) {
+                    self.recognizedTagsLabel.alpha = 1
+                }
+            })
+        }
+    }
+
+    private func showFinalLockedRecognitionStatus(tags: [String]) {
+        recognizedTagsLabel.textAlignment = .left
+        recognizedTagsLabel.font = .preferredFont(forTextStyle: .headline)
+        recognizedTagsLabel.text = "已锁定 5/5\n\(tags.joined(separator: "、"))"
+    }
+
+    private func guaranteeText(for rarity: Int) -> String? {
+        switch rarity {
+        case 6:
+            return "6★！"
+        case 5:
+            return "5★！"
+        case 4:
+            return "≥4★！"
+        case 3:
+            return "3★"
+        default:
+            return nil
+        }
+    }
+
+    private func recognitionStatusBackgroundColor(for rarity: Int) -> UIColor {
+        rarityColor(for: rarity).withAlphaComponent(0.72)
+    }
+
+    private func defaultRecognitionStatusBackgroundColor() -> UIColor {
+        UIColor.black.withAlphaComponent(0.6)
     }
 
     @objc private func resetRecognition() {
@@ -362,6 +417,10 @@ final class CameraViewController: UIViewController {
             self.lastRecognitionTime = .distantPast
 
             DispatchQueue.main.async { [weak self] in
+                self?.recognizedTagsLabel.alpha = 1
+                self?.recognizedTagsLabel.backgroundColor = self?.defaultRecognitionStatusBackgroundColor()
+                self?.recognizedTagsLabel.textAlignment = .left
+                self?.recognizedTagsLabel.font = .preferredFont(forTextStyle: .headline)
                 self?.recognizedTagsLabel.text = "正在识别公招词条..."
                 self?.resetRecognitionButton.isHidden = true
                 self?.clearOperatorResults()
@@ -369,13 +428,14 @@ final class CameraViewController: UIViewController {
         }
     }
 
-    private func findOperators(for tags: [String]) {
+    @discardableResult
+    private func findOperators(for tags: [String]) -> Int {
         guard let recruitmentDatabase else {
             print("公招数据尚未加载，无法查询干员。")
             DispatchQueue.main.async { [weak self] in
                 self?.clearOperatorResults()
             }
-            return
+            return 0
         }
 
         let groups = operatorMatchGroups(for: tags, in: recruitmentDatabase.operators)
@@ -385,6 +445,8 @@ final class CameraViewController: UIViewController {
             self?.showOperatorResults(groups)
             self?.playRecruitmentFeedback(for: guaranteedRarity)
         }
+
+        return guaranteedRarity
     }
 
     private func operatorMatchGroups(
@@ -522,6 +584,12 @@ final class CameraViewController: UIViewController {
             tagStackView.addArrangedSubview(chip)
         }
 
+        if let guaranteeChip = makeGuaranteeChip(for: group.operators) {
+            guaranteeChip.setContentHuggingPriority(.required, for: .horizontal)
+            guaranteeChip.setContentCompressionResistancePriority(.required, for: .horizontal)
+            tagStackView.addArrangedSubview(guaranteeChip)
+        }
+
         let tagSpacerView = UIView()
         tagSpacerView.translatesAutoresizingMaskIntoConstraints = false
         tagSpacerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -638,6 +706,30 @@ final class CameraViewController: UIViewController {
             font: .preferredFont(forTextStyle: .caption2),
             horizontalPadding: 6,
             verticalPadding: 2
+        )
+    }
+
+    private func makeGuaranteeChip(for operators: [RecruitmentOperator]) -> UILabel? {
+        let guaranteedRarity = minimumRarity(in: operators)
+        let text: String
+
+        switch guaranteedRarity {
+        case 6:
+            text = "6★！"
+        case 5:
+            text = "5★！"
+        case 4:
+            text = "≥4★！"
+        default:
+            return nil
+        }
+
+        return makeChipLabel(
+            text: text,
+            backgroundColor: rarityColor(for: guaranteedRarity),
+            font: .preferredFont(forTextStyle: .caption1),
+            horizontalPadding: 8,
+            verticalPadding: 4
         )
     }
 

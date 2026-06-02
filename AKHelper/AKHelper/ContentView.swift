@@ -18,10 +18,10 @@ struct ContentView: View {
                 NavigationLink {
                     CameraView()
                         .ignoresSafeArea(edges: .bottom)
-                        .navigationTitle("实时摄像头")
+                        .navigationTitle("公招识别")
                         .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    Label("打开摄像头", systemImage: "camera.fill")
+                    Label("公招识别", systemImage: "camera.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
