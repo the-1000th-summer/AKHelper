@@ -1,0 +1,86 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PROJECT_PATH: AKHelper/AKHelper.xcodeproj
+  SCHEME: AKHelper
+  CONFIGURATION: Release
+  APP_NAME: AKHelper
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app without code signing
+        run: |
+          set -euo pipefail
+
+          xcodebuild \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+
+          APP_PATH="build/DerivedData/Build/Products/${CONFIGURATION}-iphoneos/${APP_NAME}.app"
+          IPA_NAME="${APP_NAME}-ios-unsigned.ipa"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "App bundle not found: $APP_PATH" >&2
+            exit 1
+          fi
+
+          rm -rf build/Payload build/artifacts
+          mkdir -p build/Payload build/artifacts
+          cp -R "$APP_PATH" build/Payload/
+
+          (
+            cd build
+            /usr/bin/zip -qry "artifacts/$IPA_NAME" Payload
+          )
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AKHelper-ios-unsigned-ipa
+          path: build/artifacts/AKHelper-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach IPA to tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "Unsigned iOS IPA for sideloading tools."
+          fi
+
+          gh release upload "$TAG_NAME" build/artifacts/AKHelper-ios-unsigned.ipa --clobber
